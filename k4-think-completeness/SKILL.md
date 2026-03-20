@@ -207,7 +207,15 @@ description: "K4 验证：搭建完备性框架并填充确定性事实，验证
 - 完备度：平均___，充分格___/16，薄弱格___/16  
 - 主要缺口：[最需要补全的3个方向]
 - 框架质量：[致命质疑___个，重要质疑___个]
-- 下步建议：[进收敛/回拆分/回探索/重构框架]
+
+**路由指令**（标准格式，agent 直接执行）：
+```
+缺口<25% 且致命质疑=0 → 继续：读 skills/k4-think-depth/SKILL.md（收敛）
+致命质疑≥1 或框架根本问题 → 回退：读 skills/k4-think-decompose/SKILL.md（重拆）
+信息不足（薄弱格>25%）→ 回退：读 skills/k4-think-breadth/SKILL.md（补搜索）
+🔴Kill发现 → 强制收敛：读 skills/k4-think-depth/SKILL.md
+```
+输出写入 `memory/k4_state.md`。
 ```
 
 ## 传递协议
