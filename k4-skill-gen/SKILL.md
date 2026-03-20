@@ -167,6 +167,9 @@ description: "{领域}：{一句话功能}。四步流程：{维度1}→{维度2
 
 **输入要求**：{前序路径的全部输出 / 问题P}
 **输出传递**：全部4步思考过程 → {下游路径}的完整上下文
+
+**路由指令**（标准格式，每个子skill输出末尾必须包含）：
+{见 references/quad_template.md 的路由指令模板}
 ```
 
 **环分配（固定）：**
@@ -178,7 +181,7 @@ description: "{领域}：{一句话功能}。四步流程：{维度1}→{维度2
 
 search 搜可能性，verify 搜确定性。
 
-**调度器 SKILL.md：** 见 `references/quad_template.md`
+**参考手册 SKILL.md：** 见 `references/quad_template.md`。注意：生成的调度器是参考手册，不是进程。路由逻辑在子skill的路由指令里，不在调度器里。
 
 ### Phase 6：一致性审计
 

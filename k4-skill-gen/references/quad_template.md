@@ -7,87 +7,92 @@
 ```yaml
 ---
 name: {skill-name}
-description: "{领域}K4调度器。管理{init/search/verify/converge}四路径。触发词：{领域关键词}。"
+description: "{领域}K4参考手册。碱基功能表、子skill映射。触发由 BOOTSTRAP 控制，路由由子skill自路由。触发词：{领域关键词}。"
 ---
 ```
 
 ```markdown
-# {Skill名} 调度器
+# {Skill名} 参考手册
 
 > 理论基础：`skills/k4-think/references/k4_meta.md`
-
-## 入口门控
-
-P 是线性的？ → 不用四联，单文件够
-P 一步能答？ → 不用四联
-P 需要外部搜索+内部判断？ → 用四联
-
-## 四种模式
-
-| 模式 | 路径组合 | 适用 |
-|---|---|---|
-| 快速 | init | 只需四维度结构 |
-| 内省 | init→converge | 纯内生 |
-| 标准 | init→search | 需外部信息 |
-| 完整 | init→search→verify→converge | 全路径 |
-
-默认：标准
+> 触发：BOOTSTRAP §2（数不可逆信号）
+> 路由：每个子skill输出末尾的路由指令
+> 状态：`memory/k4_state.md`
 
 ## 功能表
 
 |  | 看γ | 排π | 比α | 问υ |
 |---|---|---|---|---|
-| **{A} γ** | [init·1] {具体操作} | [init·2] {具体操作} | [init·3] {具体操作} | [init·4] {具体操作} |
-| **{B} π** | [verify·2] {具体操作} | [verify·1] {具体操作} | [verify·4] {具体操作} | [verify·3] {具体操作} |
-| **{C} α** | [search·3] {具体操作} | [search·4] {具体操作} | [search·1] {具体操作} | [search·2] {具体操作} |
-| **{D} υ** | [converge·4] {具体操作} | [converge·3] {具体操作} | [converge·2] {具体操作} | [converge·1] {具体操作} |
-
-## 路由协议
-
-init 完成 →
-  ├─ 快速 → 停止
-  ├─ 内省 → converge
-  ├─ 标准 → search
-  └─ 完整 → search
-
-search 完成 →
-  ├─ 标准 → 停止
-  └─ 完整 → verify
-
-verify 完成 → 反馈决策：
-  ├─ 致命发现 → 强制 converge
-  ├─ 缺口 < 25% → converge
-  ├─ 框架问题 → 回 init
-  └─ 信息不足 → 回 search
-
-converge 完成 → 𝔇×𝔎 决策：
-  ├─ 𝔇≥0.8, 𝔎≥0.7 → 停止
-  ├─ 𝔇<0.5 → 回 init
-  ├─ 𝔎<0.5 → 回 search
-  └─ 轮数≥3 → 强制停止
+| **{A} γ** | [init·1] {操作} | [init·2] {操作} | [init·3] {操作} | [init·4] {操作} |
+| **{B} π** | [verify·2] {操作} | [verify·1] {操作} | [verify·4] {操作} | [verify·3] {操作} |
+| **{C} α** | [search·3] {操作} | [search·4] {操作} | [search·1] {操作} | [search·2] {操作} |
+| **{D} υ** | [converge·4] {操作} | [converge·3] {操作} | [converge·2] {操作} | [converge·1] {操作} |
 
 ## 子Skill映射
 
 | 路径 | 文件 | 输入 | 输出 |
 |---|---|---|---|
-| init | `skills/{name}-init/SKILL.md` | 问题P | 四维度+验证+𝔇 |
-| search | `skills/{name}-search/SKILL.md` | init全输出 | 搜索结果+可能性 |
-| verify | `skills/{name}-verify/SKILL.md` | init+search全输出 | 矩阵+缺口+反馈 |
-| converge | `skills/{name}-converge/SKILL.md` | 前序全输出 | 判断+𝔇+𝔎+决策 |
+| init | `skills/{name}-init/SKILL.md` | 问题P | 四维度+验证+𝔇+路由指令 |
+| search | `skills/{name}-search/SKILL.md` | init全输出 | 搜索结果+可能性+路由指令 |
+| verify | `skills/{name}-verify/SKILL.md` | init+search全输出 | 矩阵+缺口+路由指令 |
+| converge | `skills/{name}-converge/SKILL.md` | 前序全输出 | 𝔇+𝔎+行动方案+路由指令 |
 
-## 执行约束
+## 执行协议
 
-1. 思行分离：四路径完成前不执行外部动作
-2. 中间存档：每步写 session_scratch
-3. 轮数限制：最多3轮
-4. 传递约束：full row passing，不跳步
-5. 模式锁定：选定后不切换
+1. **入口**：BOOTSTRAP §2 决定是否用及深度
+2. **首步**：永远从 init 开始
+3. **路由**：每步输出末尾的路由指令决定下一步。agent 直接执行
+4. **状态**：每步写 `memory/k4_state.md`，下步从此文件读上下文
+5. **约束**：思行分离；轮数≤3
+
+## 自适应深度
+
+不预选模式。init 完看 𝔇 决定继续还是停：
+
+init → 𝔇≥0.8 停 = "快速"
+init → search → 停 = "标准"
+init → search → verify → converge → 停 = "完整"
+
+模式是轨迹的事后描述，不是预先选择。
+```
+
+## 子skill路由指令模板
+
+每个子skill输出末尾必须包含标准路由指令块：
+
+**init 路由指令：**
+```
+𝔇≥0.8 → 停止
+𝔇 0.5-0.8 → 继续：读 skills/{name}-search/SKILL.md
+𝔇<0.5 → 回退：重拆或换框架
+```
+
+**search 路由指令：**
+```
+高置信≥3 且覆盖均衡 → 停止
+存在关键缺口 → 继续：读 skills/{name}-verify/SKILL.md
+维度定义有问题 → 回退：读 skills/{name}-init/SKILL.md
+```
+
+**verify 路由指令：**
+```
+缺口<25% 且致命质疑=0 → 继续：读 skills/{name}-converge/SKILL.md
+致命质疑≥1 → 回退：读 skills/{name}-init/SKILL.md
+信息不足 → 回退：读 skills/{name}-search/SKILL.md
+```
+
+**converge 路由指令：**
+```
+𝔇≥0.8 且 𝔎≥0.7 → 停止（BOOTSTRAP 2+信号时 𝔇≥0.9）
+𝔇<0.5 → 回退：读 skills/{name}-init/SKILL.md
+𝔎<0.5 → 回退：读 skills/{name}-search/SKILL.md
+轮数≥3 → 强制停止
 ```
 
 ## 生成注意事项
 
 1. **{A}{B}{C}{D} 替换为实际维度名**
-2. **{具体操作} 替换为领域特有的16格操作描述**（≤20字/格）
-3. **后缀名可替换**：如果领域有更自然的术语（如 `-scan/-analyze/-audit/-decide`），在映射表注明对应关系
-4. **路由阈值可调**：𝔇/𝔎门槛根据领域风险级别调整（高风险领域提高门槛）
-5. **模式默认值可调**：信息密集型领域默认"完整"，决策型领域默认"内省"
+2. **{操作} 替换为领域特有的16格操作描述**（≤20字/格）
+3. **后缀名可替换**：领域术语优先，在映射表注明对应关系
+4. **路由阈值可调**：高风险领域提高门槛
+5. **调度器是参考手册不是进程**：不含路由逻辑，路由在子skill里
