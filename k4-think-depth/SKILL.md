@@ -252,7 +252,7 @@ description: "K4 收敛：质疑前序分析并收敛到行动方案。纵向环
 
 **路由指令**（标准格式，agent 直接执行）：
 ```
-𝔇≥0.8 且 𝔎≥0.7 → 停止，执行行动方案
+𝔇≥0.8 且 𝔎≥0.7 → 停止，执行行动方案（BOOTSTRAP 2+信号时门槛升至 𝔇≥0.9）
 𝔇<0.5 → 回退：读 skills/k4-think-decompose/SKILL.md（新一轮拆）
 𝔎<0.5 → 回退：读 skills/k4-think-breadth/SKILL.md（补信息）
 轮数≥3 → 强制停止，输出当前最优方案
