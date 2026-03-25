@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://k4-think.dev/agent/v1"
+           xmlns:k4="https://k4-think.dev/agent/v1"
+           elementFormDefault="qualified">
+
+  <!-- ════════════════════════════════════════════
+       K4 Agent Report Schema v2.0
+
+       XML是目录，不是数据库。内容在md文件里。
+       4模块：Context / Intelligence / Provenance / Handoff
+       来源：SARIF + JUnit + A2A + SALUTE + PRISMA + Amazon六页纸
+       ════════════════════════════════════════════ -->
+
+  <xs:element name="k4step" type="k4:K4StepType"/>
+
+  <xs:complexType name="K4StepType">
+    <xs:sequence>
+      <xs:element name="context" type="k4:ContextType"/>
+      <xs:element name="intelligence" type="k4:IntelligenceType"/>
+      <xs:element name="provenance" type="k4:ProvenanceType"/>
+      <xs:element name="handoff" type="k4:HandoffType"/>
+    </xs:sequence>
+    <xs:attribute name="version" type="xs:string" fixed="2.0"/>
+  </xs:complexType>
+
+  <!-- ════════ SHARED TYPES ════════ -->
+
+  <xs:simpleType name="ScoreType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="AgentEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="decompose"/>
+      <xs:enumeration value="explore"/>
+      <xs:enumeration value="validate"/>
+      <xs:enumeration value="converge"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PriorityEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="low"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="FileRefType">
+    <xs:sequence>
+      <xs:element name="path" type="xs:string"/>
+      <xs:element name="description" type="xs:string"/>
+      <xs:element name="hash" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="PropertyType">
+    <xs:sequence>
+      <xs:element name="key" type="xs:string"/>
+      <xs:element name="value" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ════════ 1. CONTEXT ════════
+       谁、什么时候、做什么、花了多少 -->
+
+  <xs:complexType name="ContextType">
+    <xs:sequence>
+      <xs:element name="agent" type="k4:AgentEnum"/>
+      <xs:element name="timestamp" type="xs:dateTime"/>
+      <xs:element name="problem" type="xs:string"/>
+      <xs:element name="round" type="xs:positiveInteger"/>
+      <xs:element name="pair" type="k4:PairEnum"/>
+      <xs:element name="schedule" type="k4:ScheduleType" minOccurs="0"/>
+      <xs:element name="telemetry" type="k4:TelemetryType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 调度状态：自上而下。调度层写入，agent读取。
+       agent产出的XML不改这个段——只有调度层能改。 -->
+  <xs:complexType name="ScheduleType">
+    <xs:sequence>
+      <xs:element name="completed_steps" type="k4:CompletedStepsType"/>
+      <xs:element name="next_expected" type="k4:AgentEnum"/>
+      <xs:element name="at_complete" type="xs:boolean"/>
+      <xs:element name="cg_complete" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CompletedStepsType">
+    <xs:sequence>
+      <xs:element name="step" minOccurs="0" maxOccurs="20">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="agent" type="k4:AgentEnum"/>
+            <xs:element name="round" type="xs:positiveInteger"/>
+            <xs:element name="status" type="k4:StepStatusEnum"/>
+            <xs:element name="xml_path" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 碱基配对：AT(分↔筛) CG(搜↔归) -->
+  <xs:simpleType name="PairEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="AT"/>
+      <xs:enumeration value="CG"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 摩擦/遥测：执行阻力 (SITREP启发) -->
+  <xs:complexType name="TelemetryType">
+    <xs:sequence>
+      <xs:element name="duration_seconds" type="xs:integer" minOccurs="0"/>
+      <xs:element name="token_count" type="xs:integer" minOccurs="0"/>
+      <xs:element name="retry_count" type="xs:integer" minOccurs="0"/>
+      <xs:element name="friction" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ════════ 2. INTELLIGENCE ════════
+       这轮产出了什么：摘要 + 数字 + 不知道的 + 自身盲点 -->
+
+  <xs:complexType name="IntelligenceType">
+    <xs:sequence>
+      <xs:element name="summary" type="xs:string"/>
+      <xs:element name="confidence_d" type="k4:ScoreType"/>
+      <xs:element name="status" type="k4:StepStatusEnum"/>
+      <xs:element name="metrics" type="k4:MetricsType"/>
+      <xs:element name="unknowns" type="k4:UnknownsType" minOccurs="0"/>
+      <xs:element name="blindspots" type="k4:BlindspotsType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 审批状态：对角线配对碱基是否审过 -->
+  <xs:simpleType name="StepStatusEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="draft"/>      <!-- 刚产出，未经对角线审 -->
+      <xs:enumeration value="verified"/>   <!-- 对角线审过，通过 -->
+      <xs:enumeration value="rejected"/>   <!-- 对角线审过，打回 -->
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 关键数字：调度用这些做路由 -->
+  <xs:complexType name="MetricsType">
+    <xs:sequence>
+      <xs:choice>
+        <xs:element name="decompose_metrics" type="k4:DecomposeMetricsType"/>
+        <xs:element name="explore_metrics" type="k4:ExploreMetricsType"/>
+        <xs:element name="validate_metrics" type="k4:ValidateMetricsType"/>
+        <xs:element name="converge_metrics" type="k4:ConvergeMetricsType"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DecomposeMetricsType">
+    <xs:sequence>
+      <xs:element name="dimension_count" type="xs:integer"/>
+      <xs:element name="s2_pass" type="xs:integer"/>
+      <xs:element name="k3_pass" type="xs:integer"/>
+      <xs:element name="novelty_pass" type="xs:integer"/>
+      <xs:element name="ce_uncovered" type="xs:integer"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ExploreMetricsType">
+    <xs:sequence>
+      <xs:element name="coverage" type="xs:integer"/>
+      <xs:element name="orthogonality" type="xs:integer"/>
+      <xs:element name="impact_count" type="xs:integer"/>
+      <xs:element name="primary_count" type="xs:integer"/>
+      <xs:element name="secondary_count" type="xs:integer"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ValidateMetricsType">
+    <xs:sequence>
+      <xs:element name="fit_count" type="xs:integer"/>
+      <xs:element name="partial_count" type="xs:integer"/>
+      <xs:element name="missing_count" type="xs:integer"/>
+      <xs:element name="fatal_blindspot_count" type="xs:integer"/>
+      <xs:element name="stray_fact_count" type="xs:integer"/>
+      <xs:element name="total_average" type="k4:ScoreType"/>
+      <xs:element name="weakest_row" type="xs:string"/>
+      <xs:element name="weakest_col" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ConvergeMetricsType">
+    <xs:sequence>
+      <xs:element name="dimension_contradictions" type="xs:integer"/>
+      <xs:element name="fact_contradictions" type="xs:integer"/>
+      <xs:element name="pi_pass" type="xs:boolean"/>
+      <xs:element name="compress_pass" type="xs:boolean"/>
+      <xs:element name="delta_d" type="xs:decimal"/>
+      <xs:element name="cauchy_converged" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Unknowns: 已知的不知道 (known unknowns) -->
+  <xs:complexType name="UnknownsType">
+    <xs:sequence>
+      <xs:element name="unknown" maxOccurs="10">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="claim" type="xs:string"/>
+            <xs:element name="evidence" type="k4:EvidenceEnum"/>
+            <xs:element name="priority" type="k4:PriorityEnum"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="EvidenceEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="positive"/>
+      <xs:enumeration value="no_counter"/>
+      <xs:enumeration value="single_source"/>
+      <xs:enumeration value="speculative"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Blindspots: 对自身决策的脆弱性分析 (Amazon六页纸FAQ启发) -->
+  <xs:complexType name="BlindspotsType">
+    <xs:sequence>
+      <xs:element name="blindspot" maxOccurs="5">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="assumption" type="xs:string"/>
+            <xs:element name="if_wrong" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ════════ 3. PROVENANCE ════════
+       信息从哪来：采纳了什么 + 排除了什么 (PRISMA启发) -->
+
+  <xs:complexType name="ProvenanceType">
+    <xs:sequence>
+      <xs:element name="included" type="k4:IncludedType"/>
+      <xs:element name="excluded" type="k4:ExcludedType"/>
+      <xs:element name="properties" type="k4:PropertiesType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 采纳的：文件指针 -->
+  <xs:complexType name="IncludedType">
+    <xs:sequence>
+      <xs:element name="thinking" type="k4:FileRefType"/>
+      <xs:element name="raw_data" type="k4:FileRefType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 排除的：看了但没采纳，及原因 (PRISMA) -->
+  <xs:complexType name="ExcludedType">
+    <xs:sequence>
+      <xs:element name="exclusion" maxOccurs="10">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="source" type="xs:string"/>
+            <xs:element name="reason" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 可扩展KV对 (SARIF property bags) -->
+  <xs:complexType name="PropertiesType">
+    <xs:sequence>
+      <xs:element name="property" type="k4:PropertyType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ════════ 4. HANDOFF ════════
+       交给下一步：决策建议 + 下一步需要什么 -->
+
+  <xs:complexType name="HandoffType">
+    <xs:sequence>
+      <xs:element name="decision" type="k4:DecisionType"/>
+      <xs:element name="dependencies" type="k4:DependenciesType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DecisionType">
+    <xs:sequence>
+      <xs:element name="next_agent" type="k4:AgentEnum" minOccurs="0"/>
+      <xs:element name="next_action" type="xs:string"/>
+      <xs:element name="reason" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- 下一步的前置条件 -->
+  <xs:complexType name="DependenciesType">
+    <xs:sequence>
+      <xs:element name="dependency" maxOccurs="10">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="need" type="xs:string"/>
+            <xs:element name="status" type="k4:DepStatusEnum"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="DepStatusEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ready"/>
+      <xs:enumeration value="blocked"/>
+      <xs:enumeration value="partial"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>
